@@ -64,21 +64,28 @@ gh api repos/{owner}/{repo}/pulls/{pr_number}/comments \
 ```
 → If empty: **stop.** Tell the user this PR has no prior reviewer comments — use `review-pr` instead.
 
-**Step 2.2** — Find `last_review_ts` = the maximum `created_at` across all reviewer comments.
+**Step 2.2** — Find the SHA the last review was posted against:
+```
+last_reviewed_sha = max(reviewer_comments, key=created_at).commit_id
+```
 
-**Step 2.3** — Fetch all commits and identify new ones:
+**Step 2.3** — Compare against current head:
+- `HEAD_SHA` = `headRefOid` from Phase 1
+- If `last_reviewed_sha == HEAD_SHA`: **stop.** Report "no changes since last review — head is still `<HEAD_SHA[:7]>`."
+
+> **Why SHA, not timestamps?** Force-pushes replace commits with ones that carry their original author dates. A rebased commit pushed after the review will have `author.date < last_review_ts` even though the branch genuinely changed. SHA comparison is always correct: same SHA = nothing new, different SHA = something changed.
+
+**Step 2.4** — Determine diff boundaries:
+
+Fetch all PR commits and filter to those not reachable from `last_reviewed_sha` (commits new since the last review), sorted ascending:
 ```bash
 gh api repos/{owner}/{repo}/pulls/{pr_number}/commits
 ```
-Filter to commits where `commit.author.date > last_review_ts`, sorted ascending.
-→ If none: **stop.** Report "no new commits have been pushed since the last review on `<last_review_ts>`."
-
-**Step 2.4** — Determine diff boundaries:
 - `BASE_SHA` = parent of the oldest new commit:
   ```bash
   gh api repos/{owner}/{repo}/commits/{oldest_new_sha} --jq '.parents[0].sha'
   ```
-- `HEAD_SHA` = `headRefOid` from Phase 1
+- `HEAD_SHA` = `headRefOid` from Phase 1 (already set in Step 2.3)
 
 **Step 2.5** — Fetch the scoped diff:
 ```bash

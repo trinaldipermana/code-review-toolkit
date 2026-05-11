@@ -104,25 +104,20 @@ runs:
             return;
           }
 
-          // Compute last review timestamp
-          const lastReviewTs = reviewerComments.reduce((max, c) =>
-            c.created_at > max ? c.created_at : max, '');
+          // Compare the SHA the last review was posted against vs the current head.
+          // Timestamp comparison is unreliable for force-pushes: rebased commits
+          // carry their original author dates, which may predate the review timestamp
+          // even though the branch was genuinely updated.
+          const lastReviewedSha = reviewerComments
+            .reduce((latest, c) => c.created_at > latest.created_at ? c : latest)
+            .commit_id;
+          const currentHeadSha = '${{ steps.pr-info.outputs.head_sha }}';
 
-          // Fetch PR commits and check for new ones since last review
-          const { data: commits } = await github.rest.pulls.listCommits({
-            owner, repo, pull_number: prNum, per_page: 100
-          });
-          const newCommits = commits.filter(c => {
-            const commitDate = c.commit.author.date || c.commit.committer.date;
-            return commitDate > lastReviewTs;
-          });
-
-          if (newCommits.length === 0) {
-            // Phase 2.3 stop: no new commits since last review
-            const ts = new Date(lastReviewTs).toISOString().replace('T', ' ').slice(0, 16) + ' UTC';
+          if (lastReviewedSha === currentHeadSha) {
+            // Phase 2.3 stop: head unchanged since last review
             await github.rest.issues.createComment({
               owner, repo, issue_number: prNum,
-              body: `**AI re-review skipped:** No new commits since last review on \`${ts}\`. Push new commits to trigger a re-review.`
+              body: `**AI re-review skipped:** No changes since last review (head is still \`${currentHeadSha.slice(0, 7)}\`). Push new commits or force-push a rebase to trigger a re-review.`
             });
             core.setOutput('skip', 'true');
             return;

@@ -246,9 +246,13 @@ gh pr comment <PR_URL> --body "$(cat <<'EOF'
 - **Local (Claude Code):** Run `/receiving-pr-review <PR_URL>` to work through CRITICAL/HIGH comments interactively
 [NEEDS HUMAN DISCUSSION] → Share the listed comment links with your team for alignment
 [SAFE TO MERGE]          → All blocking issues resolved. Ready to merge.
+
+<!-- reviewed-head: {headRefOid} -->
 EOF
 )"
 ```
+
+Replace `{headRefOid}` with the full SHA fetched in Step 1 of this phase. This marker is an invisible HTML comment that the re-review pre-flight uses to detect whether a complete review cycle has been posted for the current HEAD — required to distinguish a finished review from a run that posted inline comments but timed out before emitting the verdict.
 
 **Step 2 — Output the same verdict to the conversation** (copy exactly from the posted comment).
 

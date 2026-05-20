@@ -50,7 +50,7 @@ runs:
             owner, repo, issue_number: prNum, per_page: 100
           });
           const priorVerdicts = comments.filter(c =>
-            c.user.login === 'claude[bot]' && c.body.includes('PR Verdict:')
+            c.user.login === 'claude[bot]' && c.body.includes('Verdict:')
           );
           const mode = priorVerdicts.length === 0 ? 'review' : 're-review';
           core.info(`==> Mode: ${mode} (${priorVerdicts.length} prior verdict(s))`);

@@ -5,7 +5,7 @@ description: Use when asked to review a GitHub PR for correctness, performance, 
 
 # PR Review
 
-End-to-end PR review across three dimensions: business correctness, performance, and maintainability. Findings are posted as inline GitHub comments grouped by severity.
+End-to-end PR review across all dimensions defined in `docs/review-dimensions.md`. Findings are posted as inline GitHub comments grouped by severity.
 
 ## Prerequisites
 
@@ -46,11 +46,11 @@ gh pr diff <PR_URL>
 
 If the diff is large (>500 lines), read it in chunks using `offset`/`limit` on the saved file.
 
-## Phase 1 — Structured Analysis (3 dimensions, single pass)
+## Phase 1 — Structured Analysis (all dimensions, single pass)
 
-> **Why single pass?** In GitHub Actions, the `Agent` tool is unavailable — parallel sub-agents are not possible. A single structured pass with 3 labeled sections produces identical findings at ~40% of the turn cost.
+> **Why single pass?** In GitHub Actions, the `Agent` tool is unavailable — parallel sub-agents are not possible. A single structured pass through all sections produces identical findings at ~40% of the turn cost.
 
-**Read `docs/review-dimensions.md` now.** It is the SSOT for Section 1–3 focus areas, severity definitions, and dedup rules. Apply them exactly.
+**Read `docs/review-dimensions.md` now.** It is the SSOT for all section focus areas, severity definitions, and dedup rules. Apply them exactly — the number of sections may vary per repo; cover every section defined in that file.
 
 Analyse the full PR diff in one pass, completing each section fully before moving to the next.
 
@@ -100,7 +100,7 @@ gh pr comment <PR_URL> --body "$(cat <<'EOF'
 ## PR Review
 
 Reviewing against: CLAUDE.md, docs/invariants/, and testspecs.
-Three dimensions: business correctness · performance · maintainability.
+Sections: per docs/review-dimensions.md.
 Findings are inline below, ordered Critical → High → Medium → Low.
 EOF
 )"

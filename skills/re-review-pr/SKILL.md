@@ -262,9 +262,9 @@ Verify each `resolveReviewThread` response returns `"isResolved": true` before m
 
 ## Phase 5 — Fresh Review on New Diff Only
 
-> **Why single pass?** In GitHub Actions, the `Agent` tool is unavailable — parallel sub-agents are not possible. A single structured pass with 3 labeled sections produces identical findings at ~40% of the turn cost.
+> **Why single pass?** In GitHub Actions, the `Agent` tool is unavailable — parallel sub-agents are not possible. A single structured pass through all sections produces identical findings at ~40% of the turn cost.
 
-**Read `docs/review-dimensions.md` now.** It is the SSOT for Section 1–3 focus areas, severity definitions, and dedup rules. Apply them exactly.
+**Read `docs/review-dimensions.md` now.** It is the SSOT for all section focus areas, severity definitions, and dedup rules. Apply them exactly — the number of sections may vary per repo; cover every section defined in that file.
 
 Analyse the scoped diff (`BASE_SHA...HEAD_SHA`) in one pass, completing each section fully before moving to the next.
 
@@ -318,7 +318,7 @@ gh pr comment <PR_URL> --body "$(cat <<'EOF'
 ## Re-Review (new commits since last review)
 
 Reviewing commits from `{BASE_SHA_SHORT}` to `{HEAD_SHA_SHORT}`.
-Three dimensions: business correctness · performance · maintainability.
+Sections: per docs/review-dimensions.md.
 Prior comment threads have been replied to above. New findings are inline below, ordered Critical → High → Medium → Low.
 EOF
 )"

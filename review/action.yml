@@ -262,6 +262,41 @@ runs:
 
         gh pr comment "$PR_NUMBER" --body "$(printf "📋 **Review context loaded** — %s lines · %s domain(s)\n\n%s\n\n> %s" "$LINE_COUNT" "$DOMAIN_COUNT" "$DOMAIN_SECTION" "$BASELINE")"
 
+    # ── Linter pre-pass (B2) ────────────────────────────────────────────────
+    # Runs golangci-lint scoped to the PR diff. If findings exist, posts a
+    # PR comment listing them and fails — blocking the Claude review until
+    # the author fixes the issues and pushes again. On a clean pass, appends
+    # a "no findings" note to review_context.md so Claude doesn't re-flag
+    # the same categories.
+    - name: Run linter pre-pass
+      id: lint
+      if: |
+        steps.pr-info.outputs.skip == 'false' &&
+        steps.preflight.outputs.skip != 'true' &&
+        steps.loop_guard.outputs.skip != 'true' &&
+        steps.security.outputs.skip != 'true'
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        bash "${{ github.action_path }}/../scripts/run-lint-prepass.sh" \
+          "${{ github.event.issue.number }}" \
+          "${{ github.repository }}"
+
+    # If the lint step failed for an infrastructure reason (install crash,
+    # git fetch failure, etc.) the script exits non-zero WITHOUT setting
+    # comment_posted — meaning the PR author has no visible feedback.
+    # This catch step posts a generic error comment in that case only.
+    - name: Post linter infrastructure error
+      if: failure() && steps.lint.conclusion == 'failure' && steps.lint.outputs.comment_posted != 'true'
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        gh pr comment "${{ github.event.issue.number }}" \
+          --repo "${{ github.repository }}" \
+          --body "**AI review failed:** The linter pre-pass step crashed before it could run \`golangci-lint\`. Check the [workflow run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) for details. Fix the infrastructure issue and comment \`/review\` again."
+
     # ── Full review (first-time) ─────────────────────────────────────────────
     - name: Run full review
       if: |

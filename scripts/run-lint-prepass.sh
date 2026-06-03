@@ -43,9 +43,9 @@ git fetch origin main --depth=1 2>/dev/null || true
 
 # ── Install golangci-lint if not present ─────────────────────────────────────
 if ! command -v golangci-lint &>/dev/null; then
-  echo "==> Installing golangci-lint v1.62.2..."
-  curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh \
-    | sh -s -- -b /usr/local/bin v1.62.2
+  echo "==> Installing golangci-lint v2.1.6..."
+  curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/HEAD/install.sh \
+    | sh -s -- -b /usr/local/bin v2.1.6
 fi
 
 # ── Run lint ─────────────────────────────────────────────────────────────────

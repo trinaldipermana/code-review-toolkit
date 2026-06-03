@@ -54,7 +54,6 @@ set +e
 LINT_OUTPUT=$(golangci-lint run \
   --new-from-rev=origin/main \
   --enable-only "${LINTERS}" \
-  --output.formats=line-number \
   2>&1 | head -100)
 LINT_EXIT=$?
 set -e

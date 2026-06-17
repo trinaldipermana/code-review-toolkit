@@ -1,0 +1,30 @@
+name: OpenCode GitHub App Smoke Test
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+  issues: write
+  pull-requests: write
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Run OpenCode GitHub App smoke test
+        uses: anomalyco/opencode/github@latest
+        with:
+          model: opencode/qwen3-coder
+          share: false
+          prompt: |
+            This is a GitHub App installation smoke test.
+            Do not edit files, create branches, commit, push, or open pull requests.
+            Reply with exactly: opencode-github-app-smoke-ok

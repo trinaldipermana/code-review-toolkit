@@ -1,0 +1,182 @@
+name: OpenCode PR Review
+description: OpenCode PR review with org team token routing.
+
+inputs:
+  org:
+    description: GitHub org used for team membership lookup.
+    required: false
+    default: ${{ github.repository_owner }}
+  team_token_map:
+    description: Multiline team-to-token map, one entry per line as team_slug=secret_value.
+    required: true
+  team_lookup_token:
+    description: GitHub token used to read org team membership.
+    required: false
+    default: ${{ github.token }}
+  model:
+    description: OpenCode model.
+    required: false
+    default: deepseek/deepseek-v4-pro
+  variant:
+    description: OpenCode variant.
+    required: false
+    default: max
+  mentions:
+    description: Mention command passed to OpenCode.
+    required: false
+    default: /review
+  share:
+    description: Whether OpenCode sharing is enabled.
+    required: false
+    default: "false"
+  extra_prompt:
+    description: Extra consuming-repo review instructions.
+    required: false
+    default: ""
+  use_github_token:
+    description: Use GITHUB_TOKEN directly instead of OpenCode App token exchange.
+    required: false
+    default: "false"
+
+runs:
+  using: composite
+  steps:
+    - name: Resolve PR metadata and acknowledge
+      id: pr-info
+      uses: actions/github-script@v7
+      with:
+        github-token: ${{ github.token }}
+        script: |
+          const owner = context.repo.owner;
+          const repo = context.repo.repo;
+          const prNum = context.payload.issue.number;
+          const commentId = context.payload.comment.id;
+          const runUrl = `${context.serverUrl}/${owner}/${repo}/actions/runs/${context.runId}`;
+
+          const { data: pr } = await github.rest.pulls.get({ owner, repo, pull_number: prNum });
+
+          if (pr.draft) {
+            await github.rest.issues.createComment({
+              owner,
+              repo,
+              issue_number: prNum,
+              body: `**OpenCode review skipped:** PR is still a draft.`
+            });
+            core.setOutput('skip', 'true');
+            return;
+          }
+
+          await github.rest.reactions.createForIssueComment({
+            owner,
+            repo,
+            comment_id: commentId,
+            content: 'eyes'
+          });
+
+          await github.rest.issues.createComment({
+            owner,
+            repo,
+            issue_number: prNum,
+            body: `**OpenCode review started** for commit \`${pr.head.sha.slice(0, 7)}\`. [View workflow run](${runUrl})`
+          });
+
+          core.setOutput('skip', 'false');
+          core.setOutput('head_sha', pr.head.sha);
+          core.setOutput('pr_url', pr.html_url);
+
+    - name: Resolve team token
+      id: team-token
+      if: steps.pr-info.outputs.skip != 'true'
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.team_lookup_token }}
+        TEAM_TOKEN_MAP: ${{ inputs.team_token_map }}
+        TEAM_LOOKUP_ORG: ${{ inputs.org }}
+        COMMENT_AUTHOR: ${{ github.event.comment.user.login }}
+        GITHUB_REPOSITORY: ${{ github.repository }}
+        PR_NUMBER: ${{ github.event.issue.number }}
+      run: node "${{ github.action_path }}/../scripts/resolve-team-token.mjs"
+
+    - name: Prepare review context
+      if: steps.pr-info.outputs.skip != 'true'
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        bash "${{ github.action_path }}/../scripts/prepare-review-context.sh" \
+          "${{ github.event.issue.number }}" \
+          "${{ github.repository }}"
+
+    - name: Run OpenCode review
+      if: steps.pr-info.outputs.skip != 'true'
+      uses: anomalyco/opencode/github@latest
+      env:
+        OPENCODE_API_KEY: ${{ steps.team-token.outputs.opencode_api_key }}
+        GITHUB_TOKEN: ${{ inputs.use_github_token == 'true' && github.token || '' }}
+      with:
+        model: ${{ inputs.model }}
+        variant: ${{ inputs.variant }}
+        mentions: ${{ inputs.mentions }}
+        share: ${{ inputs.share }}
+        use_github_token: ${{ inputs.use_github_token }}
+        prompt: |
+          Review this pull request only. Do not edit files, commit, push, or create branches.
+
+          Required context:
+          - Read review_context.md first if present.
+          - Read docs/review-dimensions.md if present.
+          - Read AGENTS.md if present.
+          - Read .github/copilot-instructions.md if present.
+          - Read .github/instructions/review-depth.instructions.md if present.
+
+          Review priorities:
+          - correctness and invariant violations
+          - financial safety and audit trail completeness
+          - subscriber Ack/Nack correctness
+          - transaction safety
+          - wrong-layer imports and cross-domain boundary violations
+          - context, logging, metrics, and DB context usage
+          - performance risks such as N+1 queries or unbounded scans
+          - maintainability issues that meet configured severity rules
+
+          Finding format requirements:
+          - Every finding must use one of these severities: CRITICAL, HIGH, MEDIUM, LOW.
+          - Every finding must include a concrete file path and line number from the PR diff.
+          - Do not report findings without a line number.
+          - Do not report generated files, protobuf output, mocks, or migrations.
+          - Prefer no findings over speculative findings.
+
+          Include this machine-readable block in the final response exactly once:
+
+          <!-- opencode-pr-review -->
+          <!-- findings-json-start -->
+          [
+            {
+              "severity": "HIGH",
+              "path": "internal/domain/example/service/example.go",
+              "line": 42,
+              "title": "Short finding title",
+              "body": "Why this is a problem and what breaks downstream.",
+              "suggested_fix": "Concrete fix intent."
+            }
+          ]
+          <!-- findings-json-end -->
+
+          If there are no findings, output an empty JSON array between the markers.
+
+          After the JSON block, include a concise human-readable review summary and a final verdict:
+          - Fix Required: any CRITICAL or HIGH finding
+          - Needs Discussion: only when a finding depends on a human product or architecture decision
+          - Safe to Merge: no findings or LOW-only findings
+
+          ${{ inputs.extra_prompt }}
+
+    - name: Post failure comment
+      if: failure()
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        gh pr comment "${{ github.event.issue.number }}" \
+          --repo "${{ github.repository }}" \
+          --body "**OpenCode review failed unexpectedly.** Check the workflow run for details."
